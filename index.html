@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="量化考核">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#4361ee">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学生量化考核系统</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f0f2f5;--s:#fff;--t:#1a1a1f;--t2:#666;--a:#4361ee;--a2:#3a56d4;--d:#e74c3c;--g:#27ae60;--w:#f39c12;--b:#e0e0e0;--r:8px;--sh:0 2px 8px rgba(0,0,0,.06)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--t);min-height:100vh}
+nav{background:var(--s);border-bottom:1px solid var(--b);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;box-shadow:var(--sh);position:sticky;top:0;z-index:100}
+nav h1{font-size:16px;font-weight:700}nav h1 span{color:var(--a)}
+nav button{padding:7px 14px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px;color:var(--t2);transition:.15s}
+nav button:hover,nav button.active{background:#4361ee10;color:var(--a);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:20px}
+.card{background:var(--s);border-radius:var(--r);padding:18px;margin-bottom:14px;box-shadow:var(--sh)}
+.card h3{font-size:14px;margin-bottom:10px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--s);border-radius:var(--r);padding:16px;box-shadow:var(--sh);text-align:center}
+.stat .num{font-size:26px;font-weight:700;color:var(--a)}.stat .label{font-size:11px;color:var(--t2);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 6px;border-bottom:2px solid var(--b);font-weight:600;color:var(--t2);font-size:11px}
+td{padding:6px;border-bottom:1px solid var(--b)}tr:hover td{background:#f8f9fb}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.bg{background:#27ae6018;color:var(--g)}.br{background:#e74c3c18;color:var(--d)}.bb{background:#4361ee18;color:var(--a)}.bo{background:#f39c1218;color:var(--w)}
+input,select,textarea{padding:7px 10px;border:1px solid var(--b);border-radius:6px;font-size:12px;font-family:inherit;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--a)}
+.btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:.15s;white-space:nowrap}
+.bp{background:var(--a);color:#fff}.bp:hover{background:var(--a2)}
+.bd{background:var(--d);color:#fff}.bo2{background:none;border:1px solid var(--b);color:var(--t)}
+.bs{padding:3px 8px;font-size:10px}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fb{display:flex;justify-content:space-between;align-items:center}
+.gap{gap:6px}.mt{margin-top:10px}.mb{margin-bottom:10px}
+.tc{display:none}.tc.active{display:block}
+.toast{position:fixed;top:12px;right:12px;padding:10px 18px;border-radius:8px;color:#fff;font-size:12px;z-index:999;animation:si .3s}
+@keyframes si{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--s);border-radius:12px;padding:20px;min-width:360px;max-width:550px;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.modal h3{margin-bottom:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px}
+.sm{font-size:11px;color:var(--t2)}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>📊 学生<span>量化考核</span>系统</h1>
+  <div class="flex gap">
+    <button class="active" onclick="tab('dashboard')">仪表盘</button>
+    <button onclick="tab('students')">学生管理</button>
+    <button onclick="tab('attendance')">考勤录入</button>
+    <button onclick="tab('scores')">成绩排名</button>
+  </div>
+</nav>
+
+<main>
+  <!-- DASHBOARD -->
+  <div id="tc-dashboard" class="tc active">
+    <div class="stats" id="stats-box"></div>
+    <div class="card"><div class="fb"><h3 style="margin:0">🏆 当前排名 TOP 5</h3><button class="btn bs bo2" onclick="refreshAll()">刷新</button></div><table class="mt"><thead><tr><th>排名</th><th>姓名</th><th>总分</th><th>全勤</th><th>旷课</th><th>请假</th><th>加分</th></tr></thead><tbody id="top5"></tbody></table></div>
+  </div>
+
+  <!-- STUDENTS -->
+  <div id="tc-students" class="tc">
+    <div class="card">
+      <div class="fb mb"><h3 style="margin:0">学生名单</h3><div class="flex gap"><input placeholder="搜索姓名/学号..." style="width:180px" oninput="renderStudents(this.value)" id="ss"><button class="btn bp" onclick="addStudent()">+ 添加</button><button class="btn bo2" onclick="batchStudents()">批量导入</button><button class="btn bo2" onclick="loadDemo()">加载示例数据</button></div></div>
+      <table><thead><tr><th>学号</th><th>姓名</th><th>班干部</th><th>寝室长</th><th>加分</th><th>操作</th></tr></thead><tbody id="sl"></tbody></table>
+      <div class="mt sm" id="sc"></div>
+    </div>
+  </div>
+
+  <!-- ATTENDANCE -->
+  <div id="tc-attendance" class="tc">
+    <div class="card">
+      <div class="fb mb"><h3 style="margin:0">考勤录入</h3><div class="flex gap"><input type="date" id="ad" style="width:140px"><select id="at" style="width:80px"><option value="absent">旷课</option><option value="leave">请假</option><option value="late">迟到</option></select><input id="ap" value="2" min="1" max="8" style="width:50px" title="节数" type="number"><input id="ar" placeholder="备注" style="width:100px"><button class="btn bp" onclick="batchAtt()">录入选中</button></div></div>
+      <div class="mb"><button class="btn bs bo2" onclick="toggleAll()">全选/取消</button> <span class="sm" id="selCount">已选 0 人</span></div>
+      <div class="grid2" id="cl"></div>
+    </div>
+    <div class="card"><div class="fb mb"><h3 style="margin:0">考勤记录</h3><button class="btn bs bo2" onclick="renderAtt()">刷新</button></div>
+    <table><thead><tr><th>日期</th><th>学生</th><th>类型</th><th>节数</th><th>备注</th><th>操作</th></tr></thead><tbody id="al"></tbody></table></div>
+  </div>
+
+  <!-- SCORES -->
+  <div id="tc-scores" class="tc">
+    <div class="fb mb"><h3>成绩排名</h3><div class="flex gap"><button class="btn bp" onclick="exportExcel()">📥 导出 Excel 考核表</button><button class="btn bo2" onclick="clearAtt()">清空考勤</button></div></div>
+    <div class="card" style="overflow-x:auto">
+    <table><thead><tr><th>排名</th><th>学号</th><th>姓名</th><th>全勤</th><th>旷课(节)</th><th>迟到</th><th>请假(天)</th><th>加分</th><th>总分</th></tr></thead><tbody id="scl"></tbody></table></div>
+  </div>
+</main>
+
+<script>
+// ─── 数据层 (localStorage) ───
+const K_STUDENTS = 'sc_students';
+const K_ATT = 'sc_attendance';
+
+function load(k){try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]}}
+function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
+
+let students = load(K_STUDENTS);
+let attendance = load(K_ATT);
+
+// 加分规则
+const CADRE = ["张俊哲","焦程云","江雅楠","袁诗涵","孙欣如","陈锦","温宝轩","张哲浩"];
+const DORM = ["张俊哲","李畅学","温宝轩","苏佳欣","王唱畅","祝雨佳"];
+function bonus(name){let b=0;if(CADRE.includes(name))b+=3;if(DORM.includes(name))b+=2;return b}
+
+// ─── 考勤统计 ───
+function calcStats(){
+  let res={};
+  students.forEach(s=>{
+    let recs=attendance.filter(a=>a.sid===s.id);
+    res[s.id]={
+      absent:recs.filter(r=>r.type==='absent').reduce((c,r)=>c+(r.periods||2),0),
+      leave:new Set(recs.filter(r=>r.type==='leave').map(r=>r.date)).size,
+      late:recs.filter(r=>r.type==='late').length,
+      hasRec:recs.length>0
+    };
+  });
+  return res;
+}
+
+function calcScore(sid,stats){
+  let s=students.find(x=>x.id===sid);if(!s)return 80;
+  let st=stats[sid]||{absent:0,leave:0,late:0,hasRec:false};
+  let total=80;
+  if(!st.hasRec)total+=5;
+  total+=st.absent*-4;
+  total+=st.late*-1;
+  total+=st.leave*-1;
+  total+=bonus(s.name);
+  return Math.max(60,Math.min(95,total));
+}
+
+function getRanked(){
+  let stats=calcStats();
+  return students.map(s=>({...s,score:calcScore(s.id,stats),...stats[s.id]})).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)).map((s,i)=>({...s,rank:i+1}));
+}
+
+// ─── 渲染 ───
+function renderStudents(filter){
+  let list=students;
+  if(filter){let q=filter.toLowerCase();list=students.filter(s=>s.id.includes(q)||s.name.includes(q))}
+  document.getElementById('sl').innerHTML=list.map(s=>
+    `<tr><td>${s.id}</td><td>${s.name}</td>
+    <td>${CADRE.includes(s.name)?'<span class="badge bb">+3</span>':'<span class="sm">-</span>'}</td>
+    <td>${DORM.includes(s.name)?'<span class="badge bg">+2</span>':'<span class="sm">-</span>'}</td>
+    <td><b>+${bonus(s.name)}</b></td>
+    <td><button class="btn bd bs" onclick="delStudent('${s.id}')">删除</button></td></tr>`
+  ).join('');
+  document.getElementById('sc').textContent=`共 ${list.length} 人`;
+  renderChecklist();
+}
+
+function renderChecklist(){
+  document.getElementById('cl').innerHTML=students.map(s=>
+    `<label style="cursor:pointer;font-size:12px;padding:3px 0;display:flex;align-items:center;gap:4px">
+      <input type="checkbox" value="${s.id}" class="cb"> ${s.name}
+    </label>`
+  ).join('');
+}
+
+function renderAtt(){
+  let nameMap={};students.forEach(s=>nameMap[s.id]=s.name);
+  document.getElementById('al').innerHTML=attendance.slice().reverse().slice(0,100).map(a=>
+    `<tr><td>${a.date}</td><td>${nameMap[a.sid]||a.sid}</td>
+    <td><span class="badge ${a.type==='absent'?'br':a.type==='leave'?'bo':'bb'}">${{absent:'旷课',leave:'请假',late:'迟到'}[a.type]}</span></td>
+    <td>${a.periods||2}节</td><td>${a.remark||''}</td>
+    <td><button class="btn bd bs" onclick="delAtt(${a.id})">删</button></td></tr>`
+  ).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--t2)">暂无记录</td></tr>';
+}
+
+function renderScores(){
+  let ranked=getRanked();
+  document.getElementById('scl').innerHTML=ranked.map(s=>
+    `<tr><td><b>#${s.rank}</b></td><td>${s.id}</td><td>${s.name}</td>
+    <td>${s.hasRec?'<span class="badge br">缺勤</span>':'<span class="badge bg">全勤</span>'}</td>
+    <td>${s.absent||0}</td><td>${s.late||0}</td><td>${s.leave||0}</td>
+    <td>${bonus(s.name)>0?'<b>+'+bonus(s.name)+'</b>':'0'}</td>
+    <td><b style="font-size:14px;color:${s.score>=85?'var(--g)':s.score>=70?'var(--a)':'var(--d)'}">${s.score}</b></td></tr>`
+  ).join('');
+  // Top 5
+  let top=ranked.slice(0,5);
+  document.getElementById('top5').innerHTML=top.map(s=>
+    `<tr><td><b>#${s.rank}</b></td><td>${s.name}</td><td><b>${s.score}</b></td><td>${s.hasRec?'❌':'✅'}</td><td>${s.absent||0}</td><td>${s.leave||0}</td><td>+${bonus(s.name)}</td></tr>`
+  ).join('');
+  // Stats
+  let scores=ranked.map(s=>s.score);
+  document.getElementById('stats-box').innerHTML=`
+    <div class="stat"><div class="num">${students.length}</div><div class="label">学生总数</div></div>
+    <div class="stat"><div class="num">${(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1)}</div><div class="label">平均分</div></div>
+    <div class="stat"><div class="num">${Math.max(...scores)}</div><div class="label">最高分</div></div>
+    <div class="stat"><div class="num">${Math.min(...scores)}</div><div class="label">最低分</div></div>
+    <div class="stat"><div class="num">${(scores.filter(s=>s>=60).length/scores.length*100).toFixed(0)}%</div><div class="label">及格率</div></div>`;
+}
+
+function refreshAll(){renderScores();renderAtt();}
+
+// ─── 操作 ───
+function addStudent(){
+  let id=prompt('学号:');
+  if(!id)return;
+  let name=prompt('姓名:');
+  if(!name)return;
+  students.push({id,name});
+  save(K_STUDENTS,students);
+  renderStudents();
+  refreshAll();
+  toast('已添加');
+}
+
+function batchStudents(){
+  let text=prompt('粘贴数据，每行: 学号,姓名\n例: 020225102043,张俊哲');
+  if(!text)return;
+  text.split('\n').filter(l=>l.trim()).forEach(line=>{
+    let[id,name]=line.split(',').map(x=>x.trim());
+    if(id&&name) students.push({id,name});
+  });
+  save(K_STUDENTS,students);
+  renderStudents();
+  refreshAll();
+  toast('导入完成');
+}
+
+function delStudent(sid){
+  if(!confirm('确定删除？'))return;
+  students=students.filter(s=>s.id!==sid);
+  attendance=attendance.filter(a=>a.sid!==sid);
+  save(K_STUDENTS,students);save(K_ATT,attendance);
+  renderStudents();refreshAll();
+}
+
+function batchAtt(){
+  let cbs=document.querySelectorAll('.cb:checked');
+  if(cbs.length===0)return toast('请先勾选学生','var(--w)');
+  let date=document.getElementById('ad').value;
+  let type=document.getElementById('at').value;
+  let periods=parseInt(document.getElementById('ap').value)||2;
+  let remark=document.getElementById('ar').value;
+  cbs.forEach(cb=>{
+    attendance.push({id:Date.now()+Math.random(),sid:cb.value,date,type,periods,remark});
+  });
+  save(K_ATT,attendance);
+  document.querySelectorAll('.cb').forEach(cb=>cb.checked=false);
+  document.getElementById('selCount').textContent='已选 0 人';
+  renderAtt();renderScores();
+  toast(`已录入 ${cbs.length} 人`);
+}
+
+function delAtt(aid){attendance=attendance.filter(a=>a.id!==aid);save(K_ATT,attendance);renderAtt();renderScores();}
+function clearAtt(){if(!confirm('确定清空所有考勤记录？'))return;attendance=[];save(K_ATT,attendance);renderAtt();renderScores();toast('已清空');}
+
+function toggleAll(){
+  let cbs=document.querySelectorAll('.cb');
+  let allChecked=[...cbs].every(c=>c.checked);
+  cbs.forEach(cb=>cb.checked=!allChecked);
+  document.getElementById('selCount').textContent=`已选 ${allChecked?0:cbs.length} 人`;
+}
+
+// ─── EXCEL 导出 ───
+function exportExcel(){
+  let ranked=getRanked();
+  let rows=[['学号','姓名','全勤','旷课','迟到','请假','卫生','仪容仪表','校内吸烟','活动参与','获奖情况','违纪情况','其他','总分','排名']];
+  ranked.forEach(s=>{
+    rows.push([s.id,s.name,s.hasRec?'缺勤':'全勤',s.absent||'',s.late||'',s.leave||'','','','','','','',bonus(s.name)||'',s.score,s.rank]);
+  });
+  let wb=XLSX.utils.book_new();
+  let ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:16},{wch:10},{wch:6},{wch:6},{wch:6},{wch:6},{wch:6},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:6},{wch:6},{wch:6}];
+  XLSX.utils.book_append_sheet(wb,ws,'正面');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'反面');
+  XLSX.writeFile(wb,`量化考核表_${new Date().toISOString().slice(0,7)}.xlsx`);
+  toast('Excel 已导出');
+}
+
+// ─── 演示数据 ───
+function loadDemo(){
+  if(students.length>0){if(!confirm('已有数据，覆盖？'))return;}
+  let data=[["020225102001","赵思甜"],["020225102002","焦程云"],["020225102003","党浩"],["020225102004","江雅楠"],["020225102005","陈章静"],["020225102006","李畅学"],["020225102007","张若晗"],["020225102008","祝雨佳"],["020225102010","何烁"],["020225102012","田升语阁"],["020225102013","贾齐悦"],["020225102014","孙欣如"],["020225102015","陈锦"],["020225102016","韩婧阳"],["020225102017","张嘉怡"],["020225102018","刘瑞"],["020225102019","詹耿维"],["020225102020","武进豪"],["020225102021","白琛晨"],["020225102022","闫雅婕"],["020225102023","窦佳鑫"],["020225102024","张听杰"],["020225102025","翟春蕊"],["020225102026","米美馨"],["020225102027","蔡思远"],["020225102028","高路渊"],["020225102030","陈伟"],["020225102031","董琳钥"],["020225102032","豆怡轩"],["020225102033","王唱畅"],["020225102035","杨兆泽"],["020225102036","兴庆嘉泽"],["020225102037","刘涵"],["020225102038","袁诗涵"],["020225102039","苏佳欣"],["020225102040","温宝轩"],["020225102041","魏子凯"],["020225102043","张俊哲"],["020225102044","高阳"],["020225102045","张先锐"],["020225102046","张哲浩"],["020225101013","葛美辰"],["020225101029","王琳丽"]];
+  students=data.map(([id,name])=>({id,name}));
+  attendance=[];
+  save(K_STUDENTS,students);save(K_ATT,attendance);
+  renderStudents();refreshAll();renderAtt();
+  toast('电商25102班 43人已加载');
+}
+
+// ─── 工具 ───
+function toast(msg,color){let t=document.createElement('div');t.className='toast';t.style.background=color||'var(--a)';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000)}
+function tab(name){document.querySelectorAll('.tc').forEach(x=>x.classList.remove('active'));document.querySelectorAll('nav button').forEach((b,i)=>b.classList.toggle('active',b.textContent.includes({dashboard:'仪表盘',students:'学生管理',attendance:'考勤录入',scores:'成绩排名'}[name])));document.getElementById('tc-'+name).classList.add('active');if(name==='attendance')renderChecklist();if(name==='scores')renderScores();if(name==='dashboard')renderScores()}
+
+// 监听 checkbox 计数
+document.addEventListener('change',e=>{if(e.target.classList.contains('cb')){let n=document.querySelectorAll('.cb:checked').length;document.getElementById('selCount').textContent=`已选 ${n} 人`}});
+
+// ─── 启动 ───
+document.getElementById('ad').value=new Date().toISOString().slice(0,10);
+if(students.length===0)loadDemo();
+renderStudents();renderScores();renderAtt();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js');
+}
+// Install prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+});
+</script>
+
+</body>
+</html>
